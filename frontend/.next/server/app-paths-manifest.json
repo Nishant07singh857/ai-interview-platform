@@ -1,10 +1,1 @@
-{
-  "/not-found": "app/not-found.js",
-  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
-  "/(dashboard)/analytics/page": "app/(dashboard)/analytics/page.js",
-  "/(dashboard)/practice/page": "app/(dashboard)/practice/page.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(dashboard)/interview/page": "app/(dashboard)/interview/page.js",
-  "/(dashboard)/profile/page": "app/(dashboard)/profile/page.js",
-  "/(dashboard)/practice/company-grid/page": "app/(dashboard)/practice/company-grid/page.js"
-}
+{}
