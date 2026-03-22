@@ -1,0 +1,164 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches: [ main ]
+  release:
+    types: [published]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: ai-interview
+  ECS_CLUSTER: ai-interview-cluster
+  ECS_SERVICE: ai-interview-service
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    
+    - name: Build, tag, and push backend image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY-backend:$IMAGE_TAG -f backend/Dockerfile.prod ./backend
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY-backend:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY-backend:staging
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY-backend --all-tags
+    
+    - name: Build, tag, and push frontend image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY-frontend:$IMAGE_TAG -f frontend/Dockerfile.prod ./frontend
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY-frontend:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY-frontend:staging
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY-frontend --all-tags
+    
+    - name: Deploy to ECS
+      run: |
+        aws ecs update-service --cluster $ECS_CLUSTER-staging --service $ECS_SERVICE-backend --force-new-deployment
+        aws ecs update-service --cluster $ECS_CLUSTER-staging --service $ECS_SERVICE-frontend --force-new-deployment
+    
+    - name: Wait for deployment
+      run: |
+        aws ecs wait services-stable --cluster $ECS_CLUSTER-staging --services $ECS_SERVICE-backend $ECS_SERVICE-frontend
+    
+    - name: Run database migrations
+      run: |
+        aws ecs run-task --cluster $ECS_CLUSTER-staging --task-definition ai-interview-migration --overrides '{"containerOverrides": [{"name": "migration", "command": ["python", "-m", "scripts.migrate"]}]}'
+    
+    - name: Run smoke tests
+      run: |
+        curl -f https://staging.aiinterview.com/health
+        curl -f https://api.staging.aiinterview.com/health
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment: production
+    needs: deploy-staging
+    if: github.event_name == 'release'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    
+    - name: Tag production images
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+      run: |
+        docker pull $ECR_REGISTRY/$ECR_REPOSITORY-backend:staging
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY-backend:staging $ECR_REGISTRY/$ECR_REPOSITORY-backend:production
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY-backend:staging $ECR_REGISTRY/$ECR_REPOSITORY-backend:$RELEASE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY-backend --all-tags
+        
+        docker pull $ECR_REGISTRY/$ECR_REPOSITORY-frontend:staging
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY-frontend:staging $ECR_REGISTRY/$ECR_REPOSITORY-frontend:production
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY-frontend:staging $ECR_REGISTRY/$ECR_REPOSITORY-frontend:$RELEASE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY-frontend --all-tags
+    
+    - name: Deploy to production ECS
+      run: |
+        aws ecs update-service --cluster $ECS_CLUSTER-production --service $ECS_SERVICE-backend --force-new-deployment
+        aws ecs update-service --cluster $ECS_CLUSTER-production --service $ECS_SERVICE-frontend --force-new-deployment
+    
+    - name: Wait for deployment
+      run: |
+        aws ecs wait services-stable --cluster $ECS_CLUSTER-production --services $ECS_SERVICE-backend $ECS_SERVICE-frontend
+    
+    - name: Run database migrations
+      run: |
+        aws ecs run-task --cluster $ECS_CLUSTER-production --task-definition ai-interview-migration --overrides '{"containerOverrides": [{"name": "migration", "command": ["python", "-m", "scripts.migrate"]}]}'
+    
+    - name: Create database backup
+      run: |
+        aws ecs run-task --cluster $ECS_CLUSTER-production --task-definition ai-interview-backup
+    
+    - name: Run health checks
+      run: |
+        curl -f https://api.aiinterview.com/health
+        curl -f https://aiinterview.com
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          CHANGELOG.md
+          README.md
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Send deployment notification
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_CHANNEL: deployments
+        SLACK_TITLE: "Production Deployment"
+        SLACK_MESSAGE: "Version ${{ github.event.release.tag_name }} deployed successfully! 🚀"
+        SLACK_COLOR: success
+
+  rollback:
+    runs-on: ubuntu-latest
+    if: failure()
+    needs: deploy-production
+    
+    steps:
+    - name: Rollback production
+      run: |
+        aws ecs update-service --cluster $ECS_CLUSTER-production --service $ECS_SERVICE-backend --force-new-deployment --task-definition ${{ secrets.PREVIOUS_TASK_DEF }}
+        aws ecs update-service --cluster $ECS_CLUSTER-production --service $ECS_SERVICE-frontend --force-new-deployment --task-definition ${{ secrets.PREVIOUS_TASK_DEF }}
+    
+    - name: Send rollback notification
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_CHANNEL: deployments
+        SLACK_TITLE: "Production Rollback"
+        SLACK_MESSAGE: "Deployment failed - rolling back to previous version ⚠️"
+        SLACK_COLOR: warning

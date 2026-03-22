@@ -1,0 +1,271 @@
+'use client'
+
+import { useState } from 'react'
+import { useTheme } from 'next-themes'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card/Card'
+import { Button } from '@/components/ui/button/Button'
+import { Select } from '@/components/ui/select/Select'
+import { useAuth } from '@/hooks/useAuth'
+import {
+  SunIcon,
+  MoonIcon,
+  ComputerDesktopIcon,
+  LanguageIcon,
+  GlobeAltIcon,
+  CurrencyDollarIcon,
+  BellIcon,
+  EyeIcon,
+  TrashIcon,
+} from '@heroicons/react/24/outline'
+
+export default function SettingsPage() {
+  const { theme, setTheme } = useTheme()
+  const { user, logout } = useAuth()
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleDeleteAccount = async () => {
+    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      setIsDeleting(true)
+      // Delete account logic
+      await logout()
+    }
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          Manage your account preferences and settings
+        </p>
+      </div>
+
+      {/* Theme Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Appearance</CardTitle>
+          <CardDescription>
+            Customize how the platform looks
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button
+              onClick={() => setTheme('light')}
+              className={`p-4 rounded-lg border-2 transition-all ${
+                theme === 'light'
+                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-primary-300'
+              }`}
+            >
+              <SunIcon className={`h-6 w-6 mx-auto mb-2 ${
+                theme === 'light' ? 'text-primary-500' : 'text-gray-400'
+              }`} />
+              <span className={`text-sm font-medium ${
+                theme === 'light' ? 'text-primary-700' : 'text-gray-700'
+              }`}>
+                Light
+              </span>
+            </button>
+
+            <button
+              onClick={() => setTheme('dark')}
+              className={`p-4 rounded-lg border-2 transition-all ${
+                theme === 'dark'
+                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-primary-300'
+              }`}
+            >
+              <MoonIcon className={`h-6 w-6 mx-auto mb-2 ${
+                theme === 'dark' ? 'text-primary-500' : 'text-gray-400'
+              }`} />
+              <span className={`text-sm font-medium ${
+                theme === 'dark' ? 'text-primary-700' : 'text-gray-700'
+              }`}>
+                Dark
+              </span>
+            </button>
+
+            <button
+              onClick={() => setTheme('system')}
+              className={`p-4 rounded-lg border-2 transition-all ${
+                theme === 'system'
+                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-primary-300'
+              }`}
+            >
+              <ComputerDesktopIcon className={`h-6 w-6 mx-auto mb-2 ${
+                theme === 'system' ? 'text-primary-500' : 'text-gray-400'
+              }`} />
+              <span className={`text-sm font-medium ${
+                theme === 'system' ? 'text-primary-700' : 'text-gray-700'
+              }`}>
+                System
+              </span>
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Language & Region */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Language & Region</CardTitle>
+          <CardDescription>
+            Set your language and regional preferences
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-4">
+            <LanguageIcon className="h-5 w-5 text-gray-400" />
+            <div className="flex-1">
+              <label className="text-sm font-medium">Language</label>
+              <Select className="mt-1">
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="zh">Chinese</option>
+                <option value="ja">Japanese</option>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <GlobeAltIcon className="h-5 w-5 text-gray-400" />
+            <div className="flex-1">
+              <label className="text-sm font-medium">Time Zone</label>
+              <Select className="mt-1">
+                <option value="utc">UTC</option>
+                <option value="est">Eastern Time</option>
+                <option value="cst">Central Time</option>
+                <option value="mst">Mountain Time</option>
+                <option value="pst">Pacific Time</option>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <CurrencyDollarIcon className="h-5 w-5 text-gray-400" />
+            <div className="flex-1">
+              <label className="text-sm font-medium">Currency</label>
+              <Select className="mt-1">
+                <option value="usd">USD ($)</option>
+                <option value="eur">EUR (€)</option>
+                <option value="gbp">GBP (£)</option>
+                <option value="jpy">JPY (¥)</option>
+                <option value="cny">CNY (¥)</option>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center space-x-4">
+            <CalendarIcon className="h-5 w-5 text-gray-400" />
+            <div className="flex-1">
+              <label className="text-sm font-medium">Date Format</label>
+              <Select className="mt-1">
+                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Privacy Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Privacy</CardTitle>
+          <CardDescription>
+            Control your privacy settings
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <EyeIcon className="h-5 w-5 text-gray-400" />
+              <div>
+                <h4 className="font-medium">Profile Visibility</h4>
+                <p className="text-sm text-gray-500">
+                  Make your profile visible to other users
+                </p>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              className="toggle"
+              defaultChecked
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <ChartBarIcon className="h-5 w-5 text-gray-400" />
+              <div>
+                <h4 className="font-medium">Share Analytics</h4>
+                <p className="text-sm text-gray-500">
+                  Allow us to use your data for platform improvement
+                </p>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              className="toggle"
+              defaultChecked
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <EnvelopeIcon className="h-5 w-5 text-gray-400" />
+              <div>
+                <h4 className="font-medium">Marketing Emails</h4>
+                <p className="text-sm text-gray-500">
+                  Receive updates about new features and offers
+                </p>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              className="toggle"
+              defaultChecked
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Danger Zone */}
+      <Card className="border-error-200 dark:border-error-800">
+        <CardHeader>
+          <CardTitle className="text-error-600 dark:text-error-400">Danger Zone</CardTitle>
+          <CardDescription>
+            Irreversible and destructive actions
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between p-4 bg-error-50 dark:bg-error-900/20 rounded-lg">
+            <div className="flex items-center space-x-3">
+              <TrashIcon className="h-5 w-5 text-error-600" />
+              <div>
+                <h4 className="font-medium text-error-700 dark:text-error-300">Delete Account</h4>
+                <p className="text-sm text-error-600 dark:text-error-400">
+                  Permanently delete your account and all data
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="error"
+              onClick={handleDeleteAccount}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete Account'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
